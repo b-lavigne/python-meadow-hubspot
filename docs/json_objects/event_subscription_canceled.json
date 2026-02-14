@@ -1,0 +1,37 @@
+{
+    "event": {
+      "type": "subscription.canceled",
+      "timestamp": "2025-02-10T14:32:00Z",
+      "source": "patient_portal",
+      "idempotency_key": "evt_cancel_sub55"
+    },
+    "contact": {
+      "external_id": "420392-",
+      "email": "sarah.johnson@example.com",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "phone": "+15015551234"
+    },
+    "patient": {
+      "external_id": "43",
+      "first_name": "Tommy",
+      "last_name": "Johnson",
+      "is_minor": true,
+      "guardian_id": 42
+    },
+    "subscription": {
+      "external_id": "101",
+      "product_id": 12,
+      "product_name": "Autism Treatment",
+      "product_enum": "ENUM",
+      "state": "CANCELLED",
+      "previous_state": "ACTIVE",
+      "billing_period": "MONTHLY",
+      "billing_frequency_in_weeks": 4,
+      "price_in_cents": 9900,
+      "cancelled_at": "2025-02-10T14:32:00Z",
+      "next_refill_at": null
+    },
+    "context": {
+    }
+  }

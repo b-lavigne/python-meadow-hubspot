@@ -1,0 +1,35 @@
+{
+    "event": {
+      "type": "order.created",
+      "timestamp": "2025-02-10T14:35:00Z",
+      "source": "patient_portal",
+      "idempotency_key": "evt_ord_101_102"
+    },
+    "contact": {
+      "external_id": "420392-",
+      "email": "sarah.johnson@example.com",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "phone": "+15015551234"
+    },
+    "patient": {
+      "external_id": "43",
+      "first_name": "Tommy",
+      "last_name": "Johnson",
+      "is_minor": true,
+      "guardian_id": 42
+    },
+    "orders": [
+      {
+        "external_id": "101",
+        "product_id": 12,
+        "product_name": "Autism Treatment",
+        "product_enum": "ENUM",
+        "billing_period": "MONTHLT",
+        "price_in_cents": 9900,
+        "is_paid": true
+      }
+    ],
+    "context": {
+    }
+  }

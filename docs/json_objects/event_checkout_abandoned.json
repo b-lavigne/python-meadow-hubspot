@@ -1,0 +1,29 @@
+{
+    "event": {
+      "type": "checkout.abandoned",
+      "timestamp": "2025-02-11T14:00:00Z",
+      "source": "cron_detector",
+      "idempotency_key": "evt_chk_abandon_f1234567"
+    },
+    "contact": {
+      "external_id": "420392-",
+      "email": "sarah.johnson@example.com",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "phone": "+15015551234"
+    },
+    "patient": null,
+    "context": {
+      "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "session_url": "...",
+      "session_type": "INTAKE",
+      "funnel_step": "intake_questionnaire",
+      "current_node_id": "node_medical_history_1",
+      "order_ids": [101, 102],
+      "products": [12],
+      "product_names": ["ADHD Treatment"],
+      "total_nodes": 25,
+      "visited_nodes": 0,
+      "completion_pct": 0,
+    }
+  }

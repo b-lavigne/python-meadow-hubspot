@@ -1,0 +1,50 @@
+{
+    "event": {
+      "type": "payment.failed" | "payment.suceeded",
+      "timestamp": "2025-02-10T14:32:00Z",
+      "source": "patient_portal",
+      "idempotency_key": "evt_payfail_ord101"
+    },
+    "contact": {
+      "external_id": "420392-",
+      "email": "sarah.johnson@example.com",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "phone": "+15015551234"
+    },
+    "patient": {
+      "external_id": "43",
+      "first_name": "Tommy",
+      "is_minor": true,
+      "guardian_id": 42
+    },
+    "subscription": {
+      "external_id": "55",
+      "product_id": 12,
+      "product_name": "ADHD Treatment",
+      "state": "ACTIVE",
+      "billing_frequency_in_weeks": 12,
+      "price_in_cents": 9900,
+      "next_refill_at": "2025-03-10T00:00:00Z"
+    },
+    "transaction": {
+      "processor": "NMI",
+      "type": "AUTH",
+      "status": "FAILED" | "SUCCEEED",
+      "order_ids": [101],
+      "card_brand": "VISA",
+      "card_number": "****1234"
+    },
+    "context": {
+      "funnel_step": null,
+      "completion_pct": null,
+      "domain_slug": "foothillsderm.com",
+      "order_ids": [101],
+      "payment_failure_count": 2,
+      "last_payment_failure_at": "2025-02-08T10:00:00Z",
+      "reason_code": null,
+      "reason_text": null,
+      "amount_cents": 9900,
+      "failure_code": "card_declined"
+    }
+  }

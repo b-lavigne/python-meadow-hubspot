@@ -1,0 +1,146 @@
+"""
+Script to delete test data from HubSpot.
+Removes all contacts, deals, and tickets created during testing.
+
+Usage: python cleanup_hubspot.py
+"""
+
+import os
+import sys
+import requests
+import json
+
+# Add shared directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'shared'))
+import hubspot
+
+# Load environment variables
+HUBSPOT_API_KEY = os.environ.get("HUBSPOT_API_KEY")
+
+if not HUBSPOT_API_KEY:
+    print("ERROR: HUBSPOT_API_KEY environment variable not set")
+    print("Run: export $(cat .env | xargs)")
+    exit(1)
+
+HUBSPOT_BASE_URL = "https://api.hubapi.com"
+
+headers = {
+    "Authorization": f"Bearer {HUBSPOT_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# Test external IDs from JSON files
+TEST_GUARDIAN_IDS = ["420392-"]
+TEST_PATIENT_IDS = ["43"]
+
+
+def delete_contact(contact_id):
+    """Delete a contact by ID."""
+    url = f"{HUBSPOT_BASE_URL}/crm/v3/objects/contacts/{contact_id}"
+    response = requests.delete(url, headers=headers)
+
+    if response.status_code == 204:
+        return True
+    elif response.status_code == 404:
+        return True  # Already deleted
+    else:
+        print(f"  ✗ Failed to delete contact {contact_id}: {response.status_code} - {response.text}")
+        return False
+
+
+def delete_deal(deal_id):
+    """Delete a deal by ID."""
+    url = f"{HUBSPOT_BASE_URL}/crm/v3/objects/deals/{deal_id}"
+    response = requests.delete(url, headers=headers)
+
+    if response.status_code == 204:
+        return True
+    elif response.status_code == 404:
+        return True  # Already deleted
+    else:
+        print(f"  ✗ Failed to delete deal {deal_id}: {response.status_code} - {response.text}")
+        return False
+
+
+def main():
+    print("=" * 80)
+    print("HubSpot Test Data Cleanup")
+    print("=" * 80)
+    print()
+
+    deleted_counts = {
+        "contacts": 0,
+        "deals": 0
+    }
+
+    # 1. Find and delete all test contacts
+    print("Step 1: Finding and deleting test contacts...")
+    print("-" * 80)
+
+    all_test_ids = TEST_GUARDIAN_IDS + TEST_PATIENT_IDS
+
+    for external_id in all_test_ids:
+        contact = hubspot.search_contact_by_external_id(external_id)
+        if contact:
+            contact_id = contact["id"]
+            email = contact.get("properties", {}).get("email", "N/A")
+            print(f"  Found contact: {email} (ID: {contact_id})")
+
+            if delete_contact(contact_id):
+                print(f"  ✓ Deleted contact: {contact_id}")
+                deleted_counts["contacts"] += 1
+        else:
+            print(f"  ⊘ No contact found for external_id: {external_id}")
+
+    print()
+
+    # 2. Find and delete all test deals
+    print("Step 2: Finding and deleting test deals...")
+    print("-" * 80)
+
+    for patient_id in TEST_PATIENT_IDS:
+        deal = hubspot.search_deal_by_patient_id(patient_id)
+        if deal:
+            deal_id = deal["id"]
+            dealname = deal.get("properties", {}).get("dealname", "N/A")
+            print(f"  Found deal: {dealname} (ID: {deal_id})")
+
+            if delete_deal(deal_id):
+                print(f"  ✓ Deleted deal: {deal_id}")
+                deleted_counts["deals"] += 1
+        else:
+            print(f"  ⊘ No deal found for patient_id: {patient_id}")
+
+    print()
+
+    print("=" * 80)
+    print("Cleanup Summary")
+    print("=" * 80)
+    print(f"  Contacts deleted: {deleted_counts['contacts']}")
+    print(f"  Deals deleted:    {deleted_counts['deals']}")
+    print()
+
+    if sum(deleted_counts.values()) > 0:
+        print("✓ Cleanup completed successfully!")
+    else:
+        print("⊘ No test data found to delete")
+
+    print()
+    print("You can now run fresh tests.")
+
+
+if __name__ == "__main__":
+    # Confirm before deleting
+    print("⚠️  WARNING: This will delete ALL test data from HubSpot!")
+    print()
+    print("Test Guardian IDs:", TEST_GUARDIAN_IDS)
+    print("Test Patient IDs:", TEST_PATIENT_IDS)
+    print()
+
+    confirm = input("Are you sure you want to proceed? (type 'yes' to confirm): ")
+
+    if confirm.lower() == "yes":
+        print()
+        main()
+    else:
+        print("Cleanup cancelled.")

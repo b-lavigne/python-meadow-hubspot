@@ -1,0 +1,31 @@
+{
+    "event": {
+      "type": "patient.registered",
+      "timestamp": "2025-02-10T14:32:00Z",
+      "source": "patient_portal",
+      "idempotency_key": "evt_reg_usr42"
+    },
+    "contact": {
+      "external_id": "420392-",
+      "email": "sarah.johnson@example.com",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "phone": "15015551234",
+      "state": "CA",
+      "domain_slug": "foothillsderm.com"
+    },
+    "patient": {
+      "external_id": "43",
+      "first_name": "Tommy",
+      "last_name": "Johnson",
+      "date_of_birth": "2017-03-15",
+      "gender": "MALE",
+      "is_minor": true,
+      "guardian_id": 42,
+      "relationship_to_contact": "child"
+    },
+    "context": {
+      "utm_*": "",
+      "fbclid": ""
+    }
+  }
