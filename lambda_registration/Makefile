@@ -8,17 +8,17 @@
 # Define variables
 BUILD_CONTEXT = ./docker-build-context
 DOCKERFILE_PATH = ./Dockerfile
-IMAGE_NAME = meadow-hubspot-deal
+IMAGE_NAME = meadow-hubspot-registration
 TAG = latest
-LAMBDA_FUNCTION = meadow-hubspot-deal
+LAMBDA_FUNCTION = meadow-hubspot-registration
 AWS_ACCOUNT ?= 253260000779
 AWS_PROFILE ?= meadow
 AWS_REGION ?= us-east-2
 
 # Security: These should NEVER have hardcoded values
 # Set these via environment variables or load from AWS Secrets Manager
-AWS_ACCESS_KEY_ID ?= $(AWS_ACCESS_KEY_ID)
-AWS_SECRET_ACCESS_KEY ?= $(AWS_SECRET_ACCESS_KEY)
+#AWS_ACCESS_KEY_ID ?= $(AWS_ACCESS_KEY_ID)
+#AWS_SECRET_ACCESS_KEY ?= $(AWS_SECRET_ACCESS_KEY)
 HUBSPOT_API_KEY ?= $(HUBSPOT_API_KEY)
 
 .PHONY: all

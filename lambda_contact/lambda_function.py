@@ -140,34 +140,10 @@ def handle_registration_started(body: Dict) -> Dict:
     except Exception as e:
         logger.warning(f"Association may already exist: {str(e)}")
 
-    # Create deal for patient journey (ONE deal per patient)
-    dealname = f"{patient_data.get('first_name')} {patient_data.get('last_name')} — Patient Journey"
-    deal_properties = {
-        "dealstage": "familyregistered",  # First stage in Patient Journey pipeline
-        "pipeline": "default",
-        "patient_external_id": patient_external_id
-    }
-
-    # Check if deal already exists for this patient
-    existing_deal = hubspot.search_deal_by_patient_id(patient_external_id)
-    if existing_deal:
-        deal_id = existing_deal["id"]
-        logger.info(f"Deal already exists for patient: {deal_id}")
-    else:
-        deal = hubspot.create_deal(dealname, deal_properties)
-        deal_id = deal["id"]
-        logger.info(f"Created deal for patient journey: {deal_id}")
-
-        # Associate deal with both guardian and patient
-        hubspot.associate_deal_to_contact(deal_id, guardian_id)
-        hubspot.associate_deal_to_contact(deal_id, patient_id)
-        logger.info(f"Associated deal {deal_id} with guardian and patient")
-
     return {
         "guardian_id": guardian_id,
         "patient_id": patient_id,
-        "deal_id": deal_id,
-        "message": "Registration started - contacts and deal created"
+        "message": "Patient contact created and associated with guardian"
     }
 
 
@@ -251,12 +227,61 @@ def handle_intake_abandoned(body: Dict) -> Dict:
 
 if __name__ == "__main__":
     import json
+    import random
+    import uuid
+    from datetime import datetime
 
-    # Load test event from JSON file
-    with open("../docs/json_objects/event_patient_register.json", "r") as f:
-        test_event = json.load(f)
+    # Generate random test data
+    FIRST_NAMES = ["Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason", "Isabella", "William"]
+    LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
+    CHILD_FIRST_NAMES = ["Tommy", "Lily", "Max", "Sophie", "Jake", "Emma", "Oliver", "Chloe", "Lucas", "Mia"]
+    STATES = ["CA", "NY", "TX", "FL", "IL", "PA", "OH", "MI", "NC", "GA"]
+
+    first_name = random.choice(FIRST_NAMES)
+    last_name = random.choice(LAST_NAMES)
+    child_name = random.choice(CHILD_FIRST_NAMES)
+    email = f"{first_name.lower()}.{last_name.lower()}@example.com"
+    phone = f"1{random.randint(2000000000, 9999999999)}"
+    state = random.choice(STATES)
+    guardian_id = f"{random.randint(100000, 999999)}-"
+    patient_id = str(random.randint(10, 99))
+    guardian_num = int(guardian_id.rstrip('-'))
+
+    test_event = {
+        "event": {
+            "type": "patient.registered",
+            "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "source": "patient_portal",
+            "idempotency_key": f"evt_reg_usr{random.randint(10, 99)}"
+        },
+        "contact": {
+            "external_id": guardian_id,
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "phone": phone,
+            "state": state,
+            "domain_slug": "foothillsderm.com"
+        },
+        "patient": {
+            "external_id": patient_id,
+            "first_name": child_name,
+            "last_name": last_name,
+            "date_of_birth": "2017-03-15",
+            "gender": "MALE",
+            "is_minor": True,
+            "guardian_id": guardian_num,
+            "relationship_to_contact": "child"
+        },
+        "context": {
+            "utm_*": "",
+            "fbclid": ""
+        }
+    }
 
     print("Testing lambda_contact with patient registration event...")
+    print(f"Guardian: {first_name} {last_name} ({email})")
+    print(f"Patient: {child_name} {last_name}")
     print(f"Event type: {test_event.get('event', {}).get('type')}")
     print("-" * 80)
 

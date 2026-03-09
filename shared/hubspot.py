@@ -4,18 +4,71 @@ Handles creating and updating contacts, deals, and tickets in HubSpot.
 """
 
 import os
+import json
+import boto3
 import requests
 from typing import Dict, Optional, List
 
 
-HUBSPOT_API_KEY = os.environ.get("HUBSPOT_API_KEY")
+# Initialize Secrets Manager client
+secrets_client = boto3.client('secretsmanager')
+
+# Cache for API key to avoid repeated Secrets Manager calls
+_api_key_cache = None
+
+
+def get_hubspot_api_key() -> str:
+    """
+    Get HubSpot API key from environment or AWS Secrets Manager.
+    Caches the key after first retrieval.
+    """
+    global _api_key_cache
+
+    if _api_key_cache:
+        return _api_key_cache
+
+    # Try direct environment variable first (for local development)
+    api_key = os.environ.get("HUBSPOT_API_KEY")
+    if api_key:
+        _api_key_cache = api_key
+        return api_key
+
+    # Try fetching from Secrets Manager (for Lambda)
+    secret_arn = os.environ.get("HUBSPOT_API_KEY_SECRET_ARN")
+    if secret_arn:
+        try:
+            response = secrets_client.get_secret_value(SecretId=secret_arn)
+            secret_string = response['SecretString']
+
+            # Try to parse as JSON first (for structured secrets)
+            try:
+                secret_data = json.loads(secret_string)
+                # Secret might be stored as JSON: {"hubspot_api_key": "pat-..."}
+                api_key = secret_data.get('hubspot_api_key') or secret_data.get('api_key')
+                if api_key:
+                    _api_key_cache = api_key
+                    return api_key
+            except json.JSONDecodeError:
+                # Secret is stored as plain text string
+                api_key = secret_string.strip()
+                if api_key and api_key != "PLACEHOLDER_SET_VIA_CONSOLE_OR_CLI":
+                    _api_key_cache = api_key
+                    return api_key
+                else:
+                    raise Exception("HubSpot API key is not set in Secrets Manager (still placeholder)")
+        except Exception as e:
+            raise Exception(f"Failed to retrieve HubSpot API key from Secrets Manager: {e}")
+
+    raise Exception("HUBSPOT_API_KEY or HUBSPOT_API_KEY_SECRET_ARN not configured")
+
+
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
 
 
 def get_headers() -> Dict[str, str]:
     """Return headers for HubSpot API requests."""
     return {
-        "Authorization": f"Bearer {HUBSPOT_API_KEY}",
+        "Authorization": f"Bearer {get_hubspot_api_key()}",
         "Content-Type": "application/json"
     }
 

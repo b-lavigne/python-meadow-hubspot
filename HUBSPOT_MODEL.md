@@ -9,21 +9,16 @@
 | **Kid/Patient** | Contact | Tommy Johnson |
 | **Kid's Journey** | Deal | "Tommy Johnson — Patient Journey" |
 
-## Pipeline: Patient Journey
+## Pipeline: Patient Journey (ID: 869949826)
 
-| Stage Name | Status | Trigger Event |
-|------------|--------|---------------|
-| Family Registered | Open | patient.registered |
-| Registration Complete | Open | patient.registration_completed |
-| Intake In Progress | Open | intake.started |
-| Intake Complete | Open | intake.completed |
-| Consultation Scheduled | Open | consult.scheduled |
-| Consultation Complete | Open | consult.completed |
-| Checkout Started | Open | checkout.started |
-| **Active Subscriber** | **Won** | checkout.completed / order.created |
-| Intake Incomplete | Lost | intake.abandoned |
-| Checkout Incomplete | Lost | checkout.abandoned |
-| Subscription Ended | Lost | subscription.canceled |
+| Stage Name | Stage ID | Status | Trigger Event |
+|------------|----------|--------|---------------|
+| Family Registered | 1302219584 | Open | NOT USED - no deal at registration |
+| Intake In Progress | 1302219585 | Open | NOT USED - no intake flow |
+| Intake Incomplete | 1302219586 | Lost | NOT USED - no intake flow |
+| Checkout Incomplete | 1302219587 | Lost | checkout.abandoned |
+| **Active Subscriber** | **1302219588** | **Won** | order.created |
+| Subscription Ended | 1302219589 | Lost | subscription.canceled |
 
 ## Associations
 
@@ -39,27 +34,39 @@ Company (Family: "The Johnson Family")
 
 | Lambda | Creates | Event |
 |--------|---------|-------|
-| **lambda_company** | Company (Family) | patient.registered |
-| **lambda_contact** | 2 Contacts + Deal | patient.registered |
-| **lambda_deal** | Updates Deal stages | intake.started, checkout.abandoned, order.created, subscription.canceled, etc. |
+| **lambda_registration** | Company (Family), Guardian Contact, Patient Contact | patient.registered |
+| **lambda_deal** | Creates/Updates Deal | checkout.abandoned, order.created, payment.succeeded, subscription.canceled |
 
 ## What Gets Created When
 
 ```
 Event: patient.registered
     ↓
-lambda_company → Create "The Johnson Family" (Company)
-lambda_contact → Create Sarah (Contact), Tommy (Contact), Deal (stage=familyregistered)
-    ↓
-Associate: Company ↔ Contacts, Company ↔ Deal, Contacts ↔ Deal
+lambda_registration → Creates:
+    - Company: "The Moore Family"
+    - Guardian Contact: Frank Moore
+    - Patient Contact: Ashley Moore (synthetic email: ashley.moore+p57@meadowbio.com)
+    - Associations: Company ↔ Guardian, Company ↔ Patient, Guardian ↔ Patient
 
 Event: order.created
     ↓
-lambda_deal → Move Deal to "activesubscriber" stage, set subscription_external_id, mrr
+lambda_deal → Creates Deal (if doesn't exist) OR Updates existing Deal:
+    - Deal: "Ashley Moore — Patient Journey"
+    - Stage: activesubscriber (1302219588)
+    - Properties: subscription_external_id, mrr, product_name, amount
+    - Associations: Deal ↔ Guardian, Deal ↔ Patient, Deal ↔ Company
+
+Event: checkout.abandoned
+    ↓
+lambda_deal → Creates Deal (if doesn't exist) with stage=checkoutincomplete (1302219587)
+
+Event: payment.succeeded
+    ↓
+lambda_deal → Updates Deal: last_payment_date, mrr
 
 Event: subscription.canceled
     ↓
-lambda_deal → Move Deal to "subscriptionended" stage
+lambda_deal → Updates Deal stage to subscriptionended (1302219589)
 ```
 
 ## Custom Properties
