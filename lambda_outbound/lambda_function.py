@@ -35,6 +35,11 @@ logger.setLevel(logging.INFO)
 # ---------------------------------------------------------------------------
 
 def lambda_handler(event, context):
+    # SQS trigger — process batch of messages from hubspot-sync queue
+    if "Records" in event:
+        return _handle_sqs_batch(event)
+
+    # API Gateway trigger — existing direct HTTP flow
     logger.info("Received event: %s", json.dumps(event))
 
     try:
@@ -62,6 +67,30 @@ def lambda_handler(event, context):
         return _response(500, {"error": str(e), "event_type": evt_type})
 
 
+def _handle_sqs_batch(event):
+    """Process SQS messages from the hubspot-sync queue."""
+    failures = []
+    for record in event.get("Records", []):
+        message_id = record.get("messageId", "")
+        try:
+            body = json.loads(record["body"])
+            event_type = body.get("event_type", "")
+            logger.info("SQS event_type=%s message_id=%s", event_type, message_id)
+
+            handler = _SQS_ROUTES.get(event_type)
+            if handler is None:
+                logger.info("Unhandled SQS event_type=%s — acknowledging", event_type)
+                continue
+
+            handler(body)
+            logger.info("Completed SQS event_type=%s message_id=%s", event_type, message_id)
+        except Exception as e:
+            logger.error("Failed SQS message_id=%s: %s", message_id, e, exc_info=True)
+            failures.append({"itemIdentifier": message_id})
+
+    return {"batchItemFailures": failures}
+
+
 # ---------------------------------------------------------------------------
 # Handlers
 # ---------------------------------------------------------------------------
@@ -73,6 +102,7 @@ def _handle_registration(body):
     """
     contact = body.get("contact", {})
     patient = body.get("patient", {})
+    hutk    = body.get("context", {}).get("hutk", "")
 
     guardian_ext_id = str(contact.get("external_id", ""))
     patient_ext_id  = str(patient.get("external_id", ""))
@@ -95,6 +125,14 @@ def _handle_registration(body):
     else:
         guardian_id = hubspot.create_contact(contact.get("email", ""), guardian_props)
         logger.info("Created guardian contact %s", guardian_id)
+
+    # Link anonymous browsing session to guardian contact via hutk
+    if hutk and contact.get("email"):
+        try:
+            hubspot.create_or_update_contact_with_hutk(contact["email"], guardian_props, hutk)
+            logger.info("Linked hutk to guardian contact %s", guardian_id)
+        except Exception as e:
+            logger.warning("Failed to link hutk (non-fatal): %s", e)
 
     # --- Patient contact (synthetic email for minors) ---
     patient_email = hubspot.generate_synthetic_email(
@@ -197,6 +235,7 @@ def _handle_order_created(body):
     patient        = body.get("patient", {})
     patient_ext_id = str(patient.get("external_id", ""))
     evt            = body.get("event", {})
+    hutk           = body.get("context", {}).get("hutk", "")
 
     subscription_id = str(evt.get("subscription_id", ""))
     mrr             = evt.get("mrr", 0)
@@ -221,6 +260,15 @@ def _handle_order_created(body):
         "product_name":            product_name,
         "amount":                  str(amount),
     })
+
+    # Link anonymous browsing session to guardian contact via hutk
+    contact_email = body.get("contact", {}).get("email", "")
+    if hutk and contact_email:
+        try:
+            hubspot.create_or_update_contact_with_hutk(contact_email, {}, hutk)
+            logger.info("Linked hutk to guardian on order.created")
+        except Exception as e:
+            logger.warning("Failed to link hutk on order (non-fatal): %s", e)
 
 
 def _handle_payment_succeeded(body):
@@ -264,9 +312,84 @@ def _handle_subscription_canceled(body):
 
 
 # ---------------------------------------------------------------------------
-# Route table
+# SQS Handlers (async events from python-meadowbio-app)
 # ---------------------------------------------------------------------------
 
+def _handle_contact_sync(body):
+    """
+    HUBSPOT_CONTACT_SYNC — create guardian contact, family company,
+    associations, and hutk linking.
+
+    Payload (from meadow-api-auth registration):
+        user_id, email, first_name, last_name, phone, role, hutk
+    """
+    payload   = body.get("payload", {})
+    email     = payload.get("email", "")
+    first_name = payload.get("first_name", "")
+    last_name  = payload.get("last_name", "")
+    phone      = payload.get("phone", "")
+    user_id    = payload.get("user_id", "")
+    hutk       = payload.get("hutk", "")
+
+    # --- Guardian contact ---
+    guardian_props = {
+        "firstname":           first_name,
+        "lastname":            last_name,
+        "email":               email,
+        "phone":               phone,
+        "registration_status": "Complete",
+        "meadow_funnel_stage": "Registered",
+        "lifecyclestage":      "marketingqualifiedlead",
+        "contact_role":        "Parent",
+        "parent_external_id":  user_id,
+    }
+
+    existing = hubspot.search_contact_by_external_id(user_id)
+    if existing:
+        guardian_id = existing["id"]
+        hubspot.update_contact(guardian_id, guardian_props)
+        logger.info("Updated guardian contact %s", guardian_id)
+    else:
+        result = hubspot.create_contact(email, guardian_props)
+        guardian_id = result["id"] if result else None
+        logger.info("Created guardian contact %s", guardian_id)
+
+    # --- Link hutk for visitor attribution ---
+    if hutk and email:
+        try:
+            hubspot.create_or_update_contact_with_hutk(email, guardian_props, hutk)
+            logger.info("Linked hutk to guardian contact %s", guardian_id)
+        except Exception as e:
+            logger.warning("Failed to link hutk (non-fatal): %s", e)
+
+    # --- Family company ---
+    company_name = f"The {last_name} Family"
+    existing_company = hubspot.search_company_by_external_id(user_id)
+    if existing_company:
+        company_id = existing_company["id"]
+    else:
+        result = hubspot.create_company(company_name, {
+            "family_external_id":  user_id,
+            "meadow_caregiver_id": user_id,
+        })
+        company_id = result["id"] if result else None
+        logger.info("Created family company %s", company_id)
+
+    # --- Associations ---
+    if guardian_id and company_id:
+        hubspot.associate_company_to_contact(company_id, guardian_id)
+
+    logger.info(
+        "HUBSPOT_CONTACT_SYNC complete user_id=%s contact_id=%s company_id=%s",
+        user_id, guardian_id, company_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Route tables
+# ---------------------------------------------------------------------------
+
+# API Gateway routes (direct webhook events)
 _ROUTES = {
     "patient.registered":    _handle_registration,
     "intake.started":        _handle_intake_started,
@@ -276,6 +399,11 @@ _ROUTES = {
     "payment.succeeded":     _handle_payment_succeeded,
     "subscription.created":  _handle_subscription_created,
     "subscription.canceled": _handle_subscription_canceled,
+}
+
+# SQS routes (async events from main app)
+_SQS_ROUTES = {
+    "HUBSPOT_CONTACT_SYNC": _handle_contact_sync,
 }
 
 

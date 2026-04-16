@@ -193,6 +193,43 @@ def update_contact(contact_id: str, properties: Dict) -> Dict:
         raise Exception(f"HubSpot API error updating contact: {response.status_code} - {response.text}")
 
 
+def create_or_update_contact_with_hutk(email: str, properties: Dict, hutk: str = "") -> Optional[Dict]:
+    """
+    Create or update a contact using HubSpot's v1 API, which natively supports hutk
+    for linking anonymous visitor browsing history to the contact.
+
+    The v1 endpoint (POST /contacts/v1/contact/createOrUpdate/email/{email}) accepts
+    hutk as a top-level field. The v3 API does NOT support this.
+
+    Properties are converted to v1 format: [{"property": "key", "value": "val"}, ...]
+
+    Returns the contact data if successful, None on failure (non-fatal).
+    """
+    url = f"{HUBSPOT_BASE_URL}/contacts/v1/contact/createOrUpdate/email/{email}"
+
+    # Convert properties dict to v1 format
+    v1_properties = [
+        {"property": k, "value": v}
+        for k, v in properties.items()
+        if v is not None
+    ]
+
+    payload = {"properties": v1_properties}
+
+    if hutk:
+        payload["hutk"] = hutk
+
+    response = requests.post(url, headers=get_headers(), json=payload)
+
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 429:
+        raise Exception("HubSpot rate limit exceeded")
+    else:
+        # Non-fatal — log but don't crash the registration flow
+        return None
+
+
 def generate_synthetic_email(first_name: str, last_name: str, patient_id: str) -> str:
     """
     Generate a synthetic email for a minor patient.

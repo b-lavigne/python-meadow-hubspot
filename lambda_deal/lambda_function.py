@@ -206,6 +206,7 @@ def handle_order_created(body: Dict) -> Dict:
                 print(f"✓ Associated deal with guardian {guardian['id']}")
             except Exception as e:
                 print(f"✗ Failed to associate deal with guardian: {str(e)}")
+
         else:
             print(f"✗ Guardian not found for external_id: {guardian_external_id}")
 
