@@ -1,5 +1,5 @@
 FUNCTION_NAME        = meadow-hubspot-outbound
-LAMBDA_FUNCTION_NAME = meadowbio-dev-hubspot-outbound
+LAMBDA_FUNCTION_NAME = hubspot-meadowbio-dev-hubspot-outbound
 CONTAINER_NAME       = $(FUNCTION_NAME)-local
 AWS_REGION           = us-east-2
 AWS_ACCOUNT_ID       = $(shell aws sts get-caller-identity --query Account --output text --profile meadow)

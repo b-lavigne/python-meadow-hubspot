@@ -22,7 +22,7 @@ import logging
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'shared'))
 
 import hubspot
 
@@ -315,6 +315,40 @@ def _handle_subscription_canceled(body):
 # SQS Handlers (async events from python-meadowbio-app)
 # ---------------------------------------------------------------------------
 
+def _handle_order_sync(body):
+    """
+    HUBSPOT_ORDER_CREATED — link hutk visitor session to guardian contact
+    on order creation and advance deal to active_subscriber.
+
+    Payload (from meadow-api-orders handle_create_order):
+        user_id, email, patient_id, order_id, subscription_plan, hutk
+    """
+    payload           = body.get("payload", {})
+    email             = payload.get("email", "")
+    patient_ext_id    = payload.get("patient_id", "")
+    subscription_plan = payload.get("subscription_plan", "")
+    hutk              = payload.get("hutk", "")
+
+    deal = hubspot.search_deal_by_patient_id(patient_ext_id)
+    if deal:
+        hubspot.update_deal(deal["id"], {
+            "dealstage":         "active_subscriber",
+            "subscription_plan": subscription_plan,
+        })
+
+    # Link anonymous browsing session to guardian contact via hutk
+    if hutk and email:
+        try:
+            hubspot.create_or_update_contact_with_hutk(email, {}, hutk)
+            logger.info("Linked hutk to guardian on HUBSPOT_ORDER_CREATED email=%s", email[:4] + "***")
+        except Exception as e:
+            logger.warning("Failed to link hutk on order (non-fatal): %s", e)
+
+    logger.info(
+        "HUBSPOT_ORDER_CREATED complete patient_id=%s hutk_present=%s",
+        patient_ext_id, bool(hutk),
+    )
+
 def _handle_contact_sync(body):
     """
     HUBSPOT_CONTACT_SYNC — create guardian contact, family company,
@@ -337,10 +371,10 @@ def _handle_contact_sync(body):
         "lastname":            last_name,
         "email":               email,
         "phone":               phone,
-        "registration_status": "Complete",
-        "meadow_funnel_stage": "Registered",
+        "registration_status": "complete",
+        "meadow_funnel_stage": "registered",
         "lifecyclestage":      "marketingqualifiedlead",
-        "contact_role":        "Parent",
+        "contact_role":        "parent",
         "parent_external_id":  user_id,
     }
 
@@ -403,7 +437,8 @@ _ROUTES = {
 
 # SQS routes (async events from main app)
 _SQS_ROUTES = {
-    "HUBSPOT_CONTACT_SYNC": _handle_contact_sync,
+    "HUBSPOT_CONTACT_SYNC":    _handle_contact_sync,
+    "HUBSPOT_ORDER_CREATED":   _handle_order_sync,
 }
 
 
